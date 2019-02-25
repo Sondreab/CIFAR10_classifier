@@ -69,16 +69,18 @@ class LeNet(nn.Module):
                 num_classes: Number of classes we want to predict (10)
         """
         super().__init__()
-        num_filters = 32  # Set number of filters in all conv layers
+        num_filters = 16 # Set number of filters in all conv layers
+        kernel_conv = 5
+        padding_conv = 2
 
         # Define the convolutional layers
         self.feature_extractor = nn.Sequential(
             nn.Conv2d(
                 in_channels=image_channels,
                 out_channels=num_filters,
-                kernel_size=5,
+                kernel_size=kernel_conv,
                 stride=1,
-                padding=2
+                padding=padding_conv
             ),
             nn.ReLU(),
 
@@ -87,9 +89,9 @@ class LeNet(nn.Module):
             nn.Conv2d(
                 in_channels=num_filters,
                 out_channels=num_filters*2,
-                kernel_size=5,
+                kernel_size=kernel_conv,
                 stride=1,
-                padding=2
+                padding=padding_conv
             ),
             nn.ReLU(),
 
@@ -98,9 +100,9 @@ class LeNet(nn.Module):
             nn.Conv2d(
                 in_channels=num_filters*2,
                 out_channels=num_filters*4,
-                kernel_size=5,
+                kernel_size=kernel_conv,
                 stride=1,
-                padding=2
+                padding=padding_conv
             ),
             nn.ReLU(),
 
@@ -243,7 +245,7 @@ class Trainer:
                 # Compute the cross entropy loss for the batch
                 loss = self.loss_criterion(predictions, Y_batch)
 
-                # Backpropagation
+                # BackpropagationACC
                 loss.backward()
 
                 # Gradient descent step
@@ -272,7 +274,8 @@ if __name__ == "__main__":
     plt.plot(trainer.TRAIN_LOSS, label="Training loss")
     plt.plot(trainer.TEST_LOSS, label="Testing Loss")
     plt.legend()
-    plt.savefig(os.path.join("plots", "final_loss_task1.png"))
+
+    plt.savefig(os.path.join("plots", "final_loss_task2.png"))
     plt.show()
 
     plt.figure(figsize=(12, 8))
@@ -281,7 +284,7 @@ if __name__ == "__main__":
     plt.plot(trainer.TRAIN_ACC, label="Training Accuracy")
     plt.plot(trainer.TEST_ACC, label="Testing Accuracy")
     plt.legend()
-    plt.savefig(os.path.join("plots", "final_accuracy_task1.png"))
+    plt.savefig(os.path.join("plots", "final_accuracy_task2.png"))
     plt.show()
 
     
@@ -289,4 +292,8 @@ if __name__ == "__main__":
     print("Final training accuracy:", trainer.TRAIN_ACC[-trainer.early_stop_count])
     print("Final validation accuracy:", trainer.VALIDATION_ACC[-trainer.early_stop_count])
     print("Final test accuracy:", trainer.TEST_ACC[-trainer.early_stop_count])
+
+    print("Final training loss:", trainer.TRAIN_LOSS[-trainer.early_stop_count])
+    print("Final validation loss:", trainer.VALIDATION_LOSS[-trainer.early_stop_count])
+    print("Final test loss:", trainer.TEST_LOSS[-trainer.early_stop_count])
 
