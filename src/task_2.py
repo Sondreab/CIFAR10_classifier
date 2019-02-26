@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from dataloaders import load_cifar10
 from utils import to_cuda, compute_loss_and_accuracy
+from task_1 import LeNet
 
 class ModelTwo(nn.Module):
 
@@ -145,6 +146,140 @@ class ModelOne(nn.Module):
                 num_classes: Number of classes we want to predict (10)
         """
         super().__init__()
+        num_filters = 32  # Set number of filters in first conv layer
+        kernal_size = 5
+        padding_size = 2
+
+        conv_layers = []
+
+        conv_first = nn.Conv2d(
+                in_channels=image_channels,
+                out_channels=num_filters,
+                kernel_size=kernal_size,
+                stride=1,
+                padding=padding_size
+            )
+        
+        nn.init.xavier_uniform_(conv_first.weight)
+        conv_layers.append(conv_first)
+        
+        for i in range(1,6):
+            conv_layers.append(
+                nn.Conv2d(
+                in_channels=num_filters*(2**(i-1)),
+                out_channels=num_filters*(2**i),
+                kernel_size=kernal_size,
+                stride=1,
+                padding=padding_size
+                )
+            )
+            nn.init.xavier_uniform_(conv_layers[i].weight)
+
+        # Define the convolutional layers
+        self.feature_extractor = nn.Sequential(
+
+            conv_layers[0],
+        
+            torch.nn.Dropout2d(p=0.1, inplace=False),
+
+            torch.nn.BatchNorm2d(
+                num_filters*(2**0), 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            nn.ReLU(),
+
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            conv_layers[1],
+            nn.ReLU(),
+            conv_layers[2],
+            nn.ReLU(),
+
+            nn.BatchNorm2d(
+                num_filters*(2**2), 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            conv_layers[3],
+            nn.ReLU(),
+            conv_layers[4],
+            nn.ReLU(),
+
+            nn.BatchNorm2d(
+                num_filters*(2**4), 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+         # The output of feature_extractor will be [batch_size, num_filters*4, 4, 4]
+        self.num_output_features = (num_filters*(2**4)) * 4 * 4 # 2⁵ 2⁴ 2² 2² = 2^13
+        # Initialize our last fully connected layer
+        # Inputs all extracted features from the convolutional layers
+        # Outputs num_classes predictions, 1 for each class.
+        # There is no need for softmax activation function, as this is
+        # included with nn.CrossEntropyLoss
+        self.classifier = nn.Sequential(
+            nn.Linear(self.num_output_features, 2**8),
+            nn.ReLU(),
+            nn.Linear(2**8, 64),
+            nn.ReLU(),
+        
+            torch.nn.BatchNorm1d(
+                64, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            
+            nn.Linear(64, num_classes)
+        )
+
+        #nn.init.xavier_uniform(self.feature_extractor.weight)
+        #torch.nn.init.xavier_uniform(self)
+        #self.feature_extractor.apply(nn.init.xavier_uniform)
+        #print(self)
+
+    def forward(self, x):
+        """
+        Performs a forward pass through the model
+        Args:
+            x: Input image, shape: [batch_size, 3, 32, 32]
+        """
+
+        # Run image through convolutional layers
+        x = self.feature_extractor(x)
+        # Reshape our input to (batch_size, num_output_features)
+        x = x.view(-1, self.num_output_features)
+        # Forward pass through the fully-connected layers.
+        x = self.classifier(x)
+        return x
+
+
+class ModelStride(nn.Module):
+
+    def __init__(self,
+                 image_channels,
+                 num_classes):
+        """
+            Is called when model is initialized.
+            Args:
+                image_channels. Number of color channels in image (3)
+                num_classes: Number of classes we want to predict (10)
+        """
+        super().__init__()
         num_filters = 32 # Set number of filters in all conv layers
         
 
@@ -239,15 +374,15 @@ class Trainer:
         # Define hyperparameters
         self.epochs = 100
         self.batch_size = 64
-        self.learning_rate = 1e-3
-        self.early_stop_count = 3
+        self.learning_rate = 1e-4
+        self.early_stop_count = 4
 
         # Architecture
 
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = ModelTwo(image_channels=3, num_classes=10)
+        self.model = ModelOne(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
@@ -257,10 +392,11 @@ class Trainer:
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
-
-        self.validation_check = len(self.dataloader_train) // 2
+        self.num_checks_per_epoch = 2
+        self.validation_check = len(self.dataloader_train) // self.num_checks_per_epoch
 
         # Tracking variables
+        self.TRAINING_EPOCH = []
         self.TRAINING_STEP = []
         self.VALIDATION_LOSS = []
         self.TEST_LOSS = []
@@ -269,13 +405,14 @@ class Trainer:
         self.VALIDATION_ACC = []
         self.TEST_ACC = []
 
-    def validation_epoch(self):
+    def validation_epoch(self, training_it=0, training_epoch=0):
         """
             Computes the loss/accuracy for all three datasets.
             Train, validation and test.
         """
+        self.TRAINING_EPOCH.append(training_epoch)
+        self.TRAINING_STEP.append(training_it)
         self.model.eval()
-
         # Compute for training set
         train_loss, train_acc = compute_loss_and_accuracy(
             self.dataloader_train, self.model, self.loss_criterion
@@ -320,7 +457,8 @@ class Trainer:
         """
         Trains the model for [self.epochs] epochs.
         """
-        
+        training_iteration = 0
+        plot_idx = 0
         # Track initial loss/accuracy
         self.validation_epoch()
         for epoch in range(self.epochs):
@@ -331,7 +469,7 @@ class Trainer:
                 # Transfer images / labels to GPU VRAM, if possible
                 X_batch = to_cuda(X_batch)
                 Y_batch = to_cuda(Y_batch)
-
+                training_iteration += 1
                 # Perform the forward pass
                 predictions = self.model(X_batch)
                 # Compute the cross entropy loss for the batch
@@ -347,7 +485,8 @@ class Trainer:
                 self.optimizer.zero_grad()
                  # Compute loss/accuracy for all thratasets.
                 if batch_it % self.validation_check == 0:
-                    self.validation_epoch()
+                    plot_idx += 1
+                    self.validation_epoch(training_iteration, plot_idx)
                     # Check early stopping criteria.
                     if self.should_early_stop():
                         print("Early stopping.")
@@ -358,13 +497,16 @@ if __name__ == "__main__":
     trainer = Trainer()
     trainer.train()
 
+    for i in range(len(trainer.TRAINING_EPOCH)):
+        trainer.TRAINING_EPOCH[i] = trainer.TRAINING_EPOCH[i] / trainer.num_checks_per_epoch
     os.makedirs("plots", exist_ok=True)
     # Save plots and show them
     plt.figure(figsize=(12, 8))
     plt.title("Cross Entropy Loss")
-    plt.plot(trainer.VALIDATION_LOSS, label="Validation loss")
-    plt.plot(trainer.TRAIN_LOSS, label="Training loss")
-    plt.plot(trainer.TEST_LOSS, label="Testing Loss")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.VALIDATION_LOSS, label="Validation loss")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.TRAIN_LOSS, label="Training loss")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.TEST_LOSS, label="Testing Loss")
+    plt.xlabel("Epoch")
     plt.legend()
 
     plt.savefig(os.path.join("plots", "final_loss_task2.png"))
@@ -372,9 +514,10 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(12, 8))
     plt.title("Accuracy")
-    plt.plot(trainer.VALIDATION_ACC, label="Validation Accuracy")
-    plt.plot(trainer.TRAIN_ACC, label="Training Accuracy")
-    plt.plot(trainer.TEST_ACC, label="Testing Accuracy")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.VALIDATION_ACC, label="Validation Accuracy")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.TRAIN_ACC, label="Training Accuracy")
+    plt.plot(trainer.TRAINING_EPOCH, trainer.TEST_ACC, label="Testing Accuracy")
+    plt.xlabel("Epoch")
     plt.legend()
     plt.savefig(os.path.join("plots", "final_accuracy_task2.png"))
     plt.show()
