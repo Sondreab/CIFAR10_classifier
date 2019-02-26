@@ -5,7 +5,7 @@ from torch import nn
 from dataloaders import load_cifar10
 from utils import to_cuda, compute_loss_and_accuracy
 
-class ExampleModel(nn.Module):
+class ModelTwo(nn.Module):
 
     def __init__(self,
                  image_channels,
@@ -18,29 +18,105 @@ class ExampleModel(nn.Module):
         """
         super().__init__()
         num_filters = 32  # Set number of filters in first conv layer
+        kernal_size = 5
+        padding_size = 2
+
+        conv1 = nn.Conv2d(
+                in_channels=image_channels,
+                out_channels=num_filters,
+                kernel_size=kernal_size,
+                stride=1,
+                padding=padding_size
+            )
+        
+        conv2 = nn.Conv2d(
+                in_channels=num_filters,
+                out_channels=num_filters*2,
+                kernel_size=kernal_size,
+                stride=1,
+                padding=padding_size
+            )
+
+        conv3 = nn.Conv2d(
+                in_channels=num_filters*2,
+                out_channels=num_filters*4,
+                kernel_size=kernal_size,
+                stride=1,
+                padding=padding_size
+            )
+
+        nn.init.xavier_uniform_(conv1.weight)
+        nn.init.xavier_uniform_(conv2.weight)
+        nn.init.xavier_uniform_(conv3.weight)
 
         # Define the convolutional layers
         self.feature_extractor = nn.Sequential(
-            nn.Conv2d(
-                in_channels=image_channels,
-                out_channels=num_filters,
-                kernel_size=5,
-                stride=1,
-                padding=2
+
+            conv1,
+
+            torch.nn.Dropout2d(p=0.1, inplace=False),
+
+            torch.nn.BatchNorm2d(
+                num_filters, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
             ),
+            nn.ReLU(),
+
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.ReLU()
+
+            conv2,
+
+            torch.nn.BatchNorm2d(
+                num_filters*2, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            nn.ReLU(),
+
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            conv3,
+
+            torch.nn.BatchNorm2d(
+                num_filters*4, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            nn.ReLU(),
+
+            nn.MaxPool2d(kernel_size=2, stride=2)
         )
-        # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
-        self.num_output_features = 32*16*16
+         # The output of feature_extractor will be [batch_size, num_filters*4, 4, 4]
+        self.num_output_features = (num_filters*4) * 4 * 4
         # Initialize our last fully connected layer
         # Inputs all extracted features from the convolutional layers
         # Outputs num_classes predictions, 1 for each class.
         # There is no need for softmax activation function, as this is
         # included with nn.CrossEntropyLoss
         self.classifier = nn.Sequential(
-            nn.Linear(self.num_output_features, num_classes),
+            nn.Linear(self.num_output_features, 64),
+            torch.nn.BatchNorm1d(
+                64, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            nn.ReLU(),
+            nn.Linear(64, num_classes)
         )
+
+        #nn.init.xavier_uniform(self.feature_extractor.weight)
+        #torch.nn.init.xavier_uniform(self)
+        #self.feature_extractor.apply(nn.init.xavier_uniform)
+        #print(self)
 
     def forward(self, x):
         """
@@ -57,7 +133,7 @@ class ExampleModel(nn.Module):
         x = self.classifier(x)
         return x
 
-class LeNet(nn.Module):
+class ModelOne(nn.Module):
 
     def __init__(self,
                  image_channels,
@@ -69,44 +145,60 @@ class LeNet(nn.Module):
                 num_classes: Number of classes we want to predict (10)
         """
         super().__init__()
-        num_filters = 16 # Set number of filters in all conv layers
-        kernel_conv = 5
-        padding_conv = 2
+        num_filters = 32 # Set number of filters in all conv layers
+        
 
         # Define the convolutional layers
         self.feature_extractor = nn.Sequential(
+            torch.nn.BatchNorm2d(
+                image_channels, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
+            ),
+            nn.ReLU(),
             nn.Conv2d(
                 in_channels=image_channels,
                 out_channels=num_filters,
-                kernel_size=kernel_conv,
-                stride=1,
-                padding=padding_conv
+                kernel_size=4,
+                stride=2,
+                padding=2
+            ),
+            torch.nn.Dropout2d(p=0.2, inplace=False),
+            
+            torch.nn.BatchNorm2d(
+                num_filters, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
             ),
             nn.ReLU(),
-
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(
                 in_channels=num_filters,
                 out_channels=num_filters*2,
-                kernel_size=kernel_conv,
-                stride=1,
-                padding=padding_conv
+                kernel_size=5,
+                stride=2,
+                padding=1
+            ),
+
+            torch.nn.BatchNorm2d(
+                num_filters*2, 
+                eps=1e-05, 
+                momentum=0.1, 
+                affine=True, 
+                track_running_stats=True
             ),
             nn.ReLU(),
-
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(
                 in_channels=num_filters*2,
                 out_channels=num_filters*4,
-                kernel_size=kernel_conv,
-                stride=1,
-                padding=padding_conv
+                kernel_size=5,
+                stride=2,
+                padding=2
             ),
-            nn.ReLU(),
-
-            nn.MaxPool2d(kernel_size=2, stride=2)
+            
         )
         # The output of feature_extractor will be [batch_size, num_filters*4, 4, 4]
         self.num_output_features = (num_filters*4) * 4 * 4
@@ -147,20 +239,20 @@ class Trainer:
         # Define hyperparameters
         self.epochs = 100
         self.batch_size = 64
-        self.learning_rate = 5e-2
-        self.early_stop_count = 4
+        self.learning_rate = 1e-3
+        self.early_stop_count = 3
 
         # Architecture
 
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = LeNet(image_channels=3, num_classes=10)
+        self.model = ModelTwo(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
-        self.optimizer = torch.optim.SGD(self.model.parameters(),
+        self.optimizer = torch.optim.Adam(self.model.parameters(),
                                          self.learning_rate)
 
         # Load our dataset
