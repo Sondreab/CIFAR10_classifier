@@ -179,17 +179,16 @@ class ModelOne(nn.Module):
         self.feature_extractor = nn.Sequential(
 
             conv_layers[0],
+            nn.ReLU(),
         
-            torch.nn.Dropout2d(p=0.1, inplace=False),
-
-            torch.nn.BatchNorm2d(
+            nn.Dropout2d(p=0.1, inplace=False),
+            nn.BatchNorm2d(
                 num_filters*(2**0), 
                 eps=1e-05, 
                 momentum=0.1, 
                 affine=True, 
                 track_running_stats=True
             ),
-            nn.ReLU(),
 
             nn.MaxPool2d(kernel_size=2, stride=2),
 
@@ -230,21 +229,32 @@ class ModelOne(nn.Module):
         # Outputs num_classes predictions, 1 for each class.
         # There is no need for softmax activation function, as this is
         # included with nn.CrossEntropyLoss
-        self.classifier = nn.Sequential(
-            nn.Linear(self.num_output_features, 2**8),
-            nn.ReLU(),
-            nn.Linear(2**8, 64),
-            nn.ReLU(),
         
-            torch.nn.BatchNorm1d(
+        
+        linear1 = nn.Linear(self.num_output_features, 2048)
+        nn.init.xavier_uniform_(linear1.weight)
+
+        linear2 = nn.Linear(2048, 64)
+        nn.init.xavier_uniform_(linear2.weight)
+
+        linear3 = nn.Linear(64, num_classes)
+        nn.init.xavier_uniform_(linear3.weight)
+
+        self.classifier = nn.Sequential(
+            linear1,
+            nn.ReLU(),
+            linear2,
+            nn.ReLU(),
+
+            nn.BatchNorm1d(
                 64, 
                 eps=1e-05, 
                 momentum=0.1, 
                 affine=True, 
                 track_running_stats=True
             ),
-            
-            nn.Linear(64, num_classes)
+
+            linear3            
         )
 
         #nn.init.xavier_uniform(self.feature_extractor.weight)
@@ -374,7 +384,7 @@ class Trainer:
         # Define hyperparameters
         self.epochs = 100
         self.batch_size = 64
-        self.learning_rate = 1e-4
+        self.learning_rate = 1e-3
         self.early_stop_count = 4
 
         # Architecture
@@ -453,6 +463,25 @@ class Trainer:
             previous_loss = current_loss
         return True
 
+    def should_early_stop_custom(self):
+        """
+        Checks if validation loss doesn't improve over early_stop_count epochs.
+        """
+        # Check if we have more than early_stop_count elements in our validation_loss list.
+        if len(self.VALIDATION_LOSS) < self.early_stop_count:
+            return False
+        inc_count = 0
+        # We only care about the last [early_stop_count] losses.
+        relevant_loss = self.VALIDATION_LOSS[-self.early_stop_count:]
+        previous_loss = relevant_loss[0]
+        for current_loss in relevant_loss[1:]:
+            # If the next loss decrease, early stopping criteria is not met.
+            if current_loss > previous_loss:
+                inc_count += 1
+        if inc_count >= self.early_stop_count-1:
+            return True
+        return False
+
     def train(self):
         """
         Trains the model for [self.epochs] epochs.
@@ -488,7 +517,7 @@ class Trainer:
                     plot_idx += 1
                     self.validation_epoch(training_iteration, plot_idx)
                     # Check early stopping criteria.
-                    if self.should_early_stop():
+                    if self.should_early_stop_custom():
                         print("Early stopping.")
                         return
 
@@ -500,6 +529,15 @@ if __name__ == "__main__":
     for i in range(len(trainer.TRAINING_EPOCH)):
         trainer.TRAINING_EPOCH[i] = trainer.TRAINING_EPOCH[i] / trainer.num_checks_per_epoch
     os.makedirs("plots", exist_ok=True)
+
+    print("Final training accuracy:", trainer.TRAIN_ACC[-trainer.early_stop_count])
+    print("Final validation accuracy:", trainer.VALIDATION_ACC[-trainer.early_stop_count])
+    print("Final test accuracy:", trainer.TEST_ACC[-trainer.early_stop_count])
+
+    print("Final training loss:", trainer.TRAIN_LOSS[-trainer.early_stop_count])
+    print("Final validation loss:", trainer.VALIDATION_LOSS[-trainer.early_stop_count])
+    print("Final test loss:", trainer.TEST_LOSS[-trainer.early_stop_count])
+
     # Save plots and show them
     plt.figure(figsize=(12, 8))
     plt.title("Cross Entropy Loss")
@@ -524,11 +562,5 @@ if __name__ == "__main__":
 
     
     
-    print("Final training accuracy:", trainer.TRAIN_ACC[-trainer.early_stop_count])
-    print("Final validation accuracy:", trainer.VALIDATION_ACC[-trainer.early_stop_count])
-    print("Final test accuracy:", trainer.TEST_ACC[-trainer.early_stop_count])
-
-    print("Final training loss:", trainer.TRAIN_LOSS[-trainer.early_stop_count])
-    print("Final validation loss:", trainer.VALIDATION_LOSS[-trainer.early_stop_count])
-    print("Final test loss:", trainer.TEST_LOSS[-trainer.early_stop_count])
+    
 
