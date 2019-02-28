@@ -201,6 +201,7 @@ class Trainer:
                             filename_loss="loss_plot.png",
                             filename_accuracy="accuracy_plot.png"):
 
+
         for i in range(len(self.TRAINING_EPOCH)):
             self.TRAINING_EPOCH[i] = self.TRAINING_EPOCH[i] / 3
 
@@ -215,7 +216,7 @@ class Trainer:
         plt.legend()
 
         plt.savefig(os.path.join("../docs/plots", filename_loss))
-        plt.show()
+        #plt.show()
 
         plt.figure(figsize=(12, 8))
         plt.title("Accuracy")
@@ -225,7 +226,7 @@ class Trainer:
         plt.xlabel("Epoch")
         plt.legend()
         plt.savefig(os.path.join("../docs/plots", filename_accuracy))
-        plt.show()
+        #plt.show()
     
     def print_loss_and_accuracy(self):
         print("-------------------------------------")
@@ -279,12 +280,45 @@ class Trainer:
                     if self.early_stoping and self.should_early_stop_custom():
                         print("Early stopping.")
                         return
-                    
-
+                
 
 
 if __name__ == "__main__":
 
+    ### TASK 1
+    ### REMEMBER TO CHANGE OPTIM TO SGD
+    
+    leNet = Trainer(CNN_models.LeNet())
+    leNet.learning_rate = 5e-2
+    leNet.batch_size = 64
+    leNet.optimizer = torch.optim.SGD(leNet.model.parameters(),
+                                        leNet.learning_rate)
+
+    print("## Training LeNet ##\n")
+    leNet.train()
+    print("## Done ##\n")
+
+    print("### LeNet RESULTS ###\n")
+    leNet.print_loss_and_accuracy()
+    leNet.plot_loss_and_accuracy("Loss_task_1.png", "Accuracy_task_1.png")
+
+    ### TASK 2 
+
+    
+    modelTwo = Trainer(CNN_models.ModelTwo())
+    modelTwo.learning_rate = 5e-2
+    modelTwo.batch_size = 64
+    print("## Training ModelTwo ##\n")
+    modelTwo.train()
+    print("## Done ##\n")
+
+    print("### ModelTwo RESULTS ###\n")
+    modelTwo.print_loss_and_accuracy()
+    modelTwo.plot_loss_and_accuracy("Loss_ModelTwo.png", "Accuracy_ModelTwo.png")
+    
+
+    ### TASK 3
+    """
     ourBestModel = Trainer(CNN_models.ModelOne())
     ourBestModel.learning_rate = 1e-3
     ourBestModel.batch_size = 64
@@ -292,6 +326,9 @@ if __name__ == "__main__":
     ourBestModel.train()
     print("## Done ##\n")
 
+    print("### MODELONE RESULTS ###\n")
+    ourBestModel.print_loss_and_accuracy()
+    ourBestModel.plot_loss_and_accuracy("Loss_ModelOne.png", "Accuracy_ModelOne.png")
 
     resNet = Trainer(CNN_models.ResNet_Transfer())
     print("## Training ResNet ##\n")
@@ -317,7 +354,7 @@ if __name__ == "__main__":
 
     plt.savefig(os.path.join("../docs/plots", "Loss_ResNet_vs_ModelOne.png"))
     plt.show()
-
+    """
     
    
 
