@@ -50,3 +50,21 @@ Final test accuracy: 0.7472
 Final training loss: 0.1914376855976033
 Final validation loss: 0.821383334790604
 Final test loss: 0.8252700068009128
+
+Task 2 for rapport
+model 1
+Final training accuracy: 0.9210444444444444
+Final validation accuracy: 0.7938
+Final test accuracy: 0.7836
+Final training loss: 0.2562711658697067
+Final validation loss: 0.6324057348921329
+Final test loss: 0.6660943895008913
+
+model 2
+Final training accuracy: 0.8922888888888889
+Final validation accuracy: 0.7676
+Final test accuracy: 0.7623
+Final training loss: 0.3229595011798665
+Final validation loss: 0.6914285964603666
+Final test loss: 0.7121955628987331
+"""
